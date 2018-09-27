@@ -18,6 +18,9 @@ const RNGameCenter = {
   getPlayer: () => {
     return NativeModules.RNGameCenter.getPlayer()
   },
+  generateIdentityVerificationSignature: () => {
+    return NativeModules.RNGameCenter.generateIdentityVerificationSignature()
+  },
   getPlayerFriends: () => {
     return NativeModules.RNGameCenter.getPlayerFriends()
   },
