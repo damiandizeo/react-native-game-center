@@ -131,6 +131,41 @@ RCT_EXPORT_METHOD(init:(NSDictionary *)options
 
 
 
+/* -------------- generateIdentityVerificationSignature --------------*/
+
+RCT_EXPORT_METHOD(generateIdentityVerificationSignature:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject){
+    if(_isGameCenterAvailable==NO){
+        reject(@"Error",@"Game Center is Unavailable", nil);
+        return;
+    }
+    
+    GKLocalPlayer *localPlayer;
+    @try {
+        localPlayer = [GKLocalPlayer localPlayer];
+    }@catch (NSError * e) {
+        reject(@"Error",@"Error getting user.", e);
+    }
+    
+    [localPlayer generateIdentityVerificationSignatureWithCompletionHandler:^(NSURL *publicKeyUrl, NSData *signature, NSData *salt, uint64_t timestamp, NSError *error) {
+        if (error) {
+            reject(@"Error", @"generateIdentityVerificationSignatureWithCompletionHandler failed", error);
+        }
+        else {
+            // package data to be sent to server for verification
+            NSDictionary *params = @{@"publicKeyUrl": publicKeyUrl,
+                                     @"timestamp": [NSString stringWithFormat:@"%llu", timestamp],
+                                     @"signature": [signature base64EncodedStringWithOptions:0],
+                                     @"salt": [salt base64EncodedStringWithOptions:0],
+                                     @"playerID": localPlayer.playerID,
+                                     @"bundleID": [[NSBundle mainBundle] bundleIdentifier]};
+            
+            resolve(params);
+        }
+    }];
+}
+
+
 
 /* --------------getPlayer--------------*/
 
