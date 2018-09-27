@@ -92,9 +92,9 @@ RCT_EXPORT_METHOD(init
                         NSLog(@"%@", [error localizedDescription]);
                         reject(
                             @"Error",
-                            @"Error initiating Game Center make sure you are "
-                            @"enrolled in the apple program, you set up a game "
-                            @"center in itunes connect, and you registed it to "
+                            @"Error initiating Game Center; make sure you are "
+                            @"enrolled in the Apple program, you set up Game "
+                            @"Center in iTunes Connect, and you registered it to "
                             @"the correct and matching app bundle id",
                             error);
                     }
@@ -107,7 +107,6 @@ RCT_EXPORT_METHOD(init
                   }];
           }
           else {
-
               reject(@"Error", @"Error initiating Game Center Player", error);
           }
       }
