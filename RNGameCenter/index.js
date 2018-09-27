@@ -1,35 +1,29 @@
-
-
-import { NativeModules } from 'react-native';
+import { NativeModules } from "react-native";
 
 // const { RNGameCenter as ReactNativeGameCenter } = NativeModules;
 
 const RNGameCenter = {
-  init: (options) => {
+  init: options => {
     // required: achievementIdentifier
     // optional: leaderboardIdentifier
     // {achievementIdentifier:""
     // leaderboardIdentifier:""}
 
-    return NativeModules.RNGameCenter.init(options)
+    return NativeModules.RNGameCenter.init(options);
   },
-
 
   getPlayer: () => {
-    return NativeModules.RNGameCenter.getPlayer()
+    return NativeModules.RNGameCenter.getPlayer();
   },
   generateIdentityVerificationSignature: () => {
-    return NativeModules.RNGameCenter.generateIdentityVerificationSignature()
+    return NativeModules.RNGameCenter.generateIdentityVerificationSignature();
   },
   getPlayerFriends: () => {
-    return NativeModules.RNGameCenter.getPlayerFriends()
+    return NativeModules.RNGameCenter.getPlayerFriends();
   },
   getPlayerImage: () => {
-    return NativeModules.RNGameCenter.getPlayerImage()
+    return NativeModules.RNGameCenter.getPlayerImage();
   },
-
-
-
 
   // challengeWithScore:(options)=>{
   //   if(!options.score)throw "Missing 'score' from challengeWithScore object";
@@ -39,19 +33,23 @@ const RNGameCenter = {
   // return  NativeModules.RNGameCenter.findScoresOfFriendsToChallenge({})
   // },
 
-
   // https://developer.apple.com/documentation/gamekit/gkscore
-  openLeaderboardModal: (options) => {
+  openLeaderboardModal: options => {
     //props
     //leaderboardIdentifier or Defaults back to init leaderboardIdentifier
-    return NativeModules.RNGameCenter.openLeaderboardModal(options)
+    return NativeModules.RNGameCenter.openLeaderboardModal(options);
   },
-  submitLeaderboardScore: (options) => {
+  submitLeaderboardScore: options => {
     //optional: leaderboardIdentifier or Defaults back to init leaderboardIdentifier
     //required: score
 
-    if (!options.score) throw "Missing 'score' from submitLeaderboardScore object";
-    else return NativeModules.RNGameCenter.submitLeaderboardScore(options.score, options)
+    if (!options.score)
+      throw "Missing 'score' from submitLeaderboardScore object";
+    else
+      return NativeModules.RNGameCenter.submitLeaderboardScore(
+        options.score,
+        options
+      );
   },
 
   // getLeaderboardPlayers:(options)=>{
@@ -62,56 +60,43 @@ const RNGameCenter = {
   // return  NativeModules.RNGameCenter.getLeaderboardPlayers(options)
   // },
 
-
-
-
-
-
   // https://developer.apple.com/documentation/gamekit/gkachievement
   openAchievementModal: (options = {}) => {
-
-    return NativeModules.RNGameCenter.openAchievementModal(options)
+    return NativeModules.RNGameCenter.openAchievementModal(options);
   },
 
   getAchievements: () => {
     //null
-    return NativeModules.RNGameCenter.getAchievements()
+    return NativeModules.RNGameCenter.getAchievements();
   },
 
   resetAchievements: (options = {}) => {
-
-    return NativeModules.RNGameCenter.resetAchievements(options)
+    return NativeModules.RNGameCenter.resetAchievements(options);
   },
-
 
   //         entry[@"playerID"] = achievement.playerID;
   // [earntAchievements addObject:entry];
-  submitAchievementScore: (options) => {
+  submitAchievementScore: options => {
     //optional
     //showsCompletionBanner (boolean)
     // achievementIdentifier (optional, reverts to default)
     //required
     // percentComplete (number/float 1-100)
-    if (!options.percentComplete) throw "Missing 'percentComplete' from submitAchievementScore object";
+    if (!options.percentComplete)
+      throw "Missing 'percentComplete' from submitAchievementScore object";
     // if(!options.showsCompletionBanner)
-    return NativeModules.RNGameCenter.submitAchievementScore(options)
+    return NativeModules.RNGameCenter.submitAchievementScore(options);
     // return  NativeModules.RNGameCenter.submitAchievementScore(options.percentComplete,options)
-
   },
   getLeaderboardPlayers(options) {
-    return NativeModules.RNGameCenter.getLeaderboardPlayers(options)
+    return NativeModules.RNGameCenter.getLeaderboardPlayers(options);
   },
   getTopLeaderboardPlayers(options) {
-    return NativeModules.RNGameCenter.getTopLeaderboardPlayers(options)
+    return NativeModules.RNGameCenter.getTopLeaderboardPlayers(options);
   }
 };
 
-
-
-
-
-
-export default RNGameCenter
+export default RNGameCenter;
 
 /*
 
@@ -145,8 +130,6 @@ NOTE: int64_t range is (-9,223,372,036,854,775,808 to +9,223,372,036,854,775,807
   NSNumber* numpre = [options valueForKey:@"score"];
   int scoreIn = (int)options[@"score"];
 */
-
-
 
 /*
 //TODO coming soon
