@@ -75,6 +75,12 @@ RCT_EXPORT_METHOD(init
         [UIApplication sharedApplication].keyWindow.rootViewController;
 
     GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
+
+    if (localPlayer.isAuthenticated) {
+        resolve(@"already authenticated");
+        return;
+    }
+
     localPlayer.authenticateHandler = ^(UIViewController *gcViewController,
                                         NSError *error) {
       if (gcViewController != nil) {
