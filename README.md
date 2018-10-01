@@ -1,7 +1,12 @@
-<p align="center"><img alt="react-native-game-center" src="snapshots/react-native-game-center.jpg" width="308"></p><p align="center">Meet react-native-game-center</p><p align="center"><a href="http://standardjs.com/"><img  src="https://img.shields.io/badge/code style-standard-brightgreen.svg?style=flat-square"></a><a href="http://standardjs.com/"><img  src="https://img.shields.io/github/downloads/atom/atom/latest/total.svg"></a><a href="https://npmjs.org/package/react-native-game-center"><img alt="npm version" src="http://img.shields.io/npm/v/react-native-game-center.svg?style=flat-square"></a><a href="https://npmjs.org/package/react-native-game-center"><img alt="npm version" src="http://img.shields.io/npm/dm/react-native-game-center.svg?style=flat-square"></a><a href="https://github.com/garrettmac/react-native-game-center/pulls?q=is:pr is:closed"><img alt="PR Stats" src="https://img.shields.io/issuestats/i/github/garrettmac/react-native-game-center.svg?style=flat-square"></a><a href="https://github.com/garrettmac/react-native-game-center/issues?q=is:issue is:closed"><img alt="Issue Stats" src="https://img.shields.io/issuestats/p/github/garrettmac/react-native-game-center.svg" style="flat-square"></a>   <a><img  src="https://img.shields.io/github/forks/garrettmac/react-native-game-center.svg"/></a><a><img  src="https://img.shields.io/github/stars/garrettmac/react-native-game-center.svg"/></a><a><img  src="https://img.shields.io/badge/license-MIT-blue.svg"/><a><img  src="https://img.shields.io/twitter/url/https/github.com/garrettmac/react-native-game-center.svg?style=social"></a><a href="https://gitter.im/garrettmac/react-native-game-center?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge"><img alt="Join the chat" src="https://badges.gitter.im/garrettmac/react-native-game-center.svg"></a></p>
+<p align="center"><img alt="react-native-game-center" src="snapshots/react-native-game-center.jpg" width="308"></p><p align="center">Meet react-native-game-center</p>
+<a href=""https://npmjs.org/package/react-native-game-center"><img  src="https://img.shields.io/github/downloads/atom/atom/latest/total.svg"></a>
+<a href="https://npmjs.org/package/react-native-game-center"><img alt="npm version" src="http://img.shields.io/npm/v/react-native-game-center.svg?style=flat-square"></a>
+<a href="https://npmjs.org/package/react-native-game-center"><img alt="npm version" src="http://img.shields.io/npm/dm/react-native-game-center.svg?style=flat-square"></a>
+
 
 # React Native Game Center
-hire me!
+
+
 <p align="center">
 <img alt="app" src="snapshots/app.png"/>
 <img alt="achivements" src="snapshots/app-achivements.png"/>
@@ -12,45 +17,38 @@ hire me!
 
 # Contents
 
-- [React Native Game Center](#react-native-game-center)
-  * [Contents](#contents)
-  * [Getting Started](#getting-started)
-  * [Basic Usage](#basic-usage)
-  * [Installation](#installation)
-  * [Set Up](#set-up)
-- [Example](#example)
-- [Methods](#methods)
+- [Installation](#installation)
+- [Getting Started](#example-project)
+- [Basic Usage](#basic-usage)
 - [Init Method](#init-method)
-  * [init()](#init----promise--)
 - [Player Methods](#player-methods)
-  * [getPlayer()](#getplayer--promise--)
-  * [getPlayerImage()](#getplayerimage--promise--)
-  * [getPlayerFriends()](#getplayerfriends--promise--)
-- [Leaderboard Methods](#leaderboard-methods)
-  * [openLeaderboardModal()](#openleaderboardmodal--promise--)
-  * [submitLeaderboardScore()](#submitleaderboardscore--promise--)
-  * [getLeaderboardPlayers()](#getLeaderboardPlayers--promise--)
-  * [getTopLeaderboardPlayers()](#getTopLeaderboardPlayers--promise--)
-- [Achievements Methods](#achievements-methods)
-  * [openAchievementModal()](#openachievementmodal--promise--)
-  * [getAchievements()](#getachievements--promise--)
-  * [resetAchievements()](#resetachievements--promise--)
-  * [submitAchievementScore()](#submitachievementscore--promise--)
+- [Leaderboard Methods](#leaderboard-methods)  
+- [Achievements Methods](#achievements-methods)  
 
-- [TODO](#todo)
 
-# Getting Started
+# Installation
 
-- Install `react-native` first
+In your project root, run:
 
 ```bash
-npm i react-native -g
-react-native init myApp
-cd myApp
 yarn add react-native-game-center
-react-native link
-react-native run-ios
+react-native link react-native-game-center
 ```
+
+If you need help setting up GameCenter within iTunes Connect, see [SETUP.md](SETUP.md).
+
+
+# Example Project
+
+You may want to clone this repo and play with the example project:
+
+```bash
+$ git clone https://github.com/miracle2k/react-native-game-center
+$ cd react-native-game-center/GameCenterExample
+$ yarn install
+$ npm start
+```
+
 
 # Basic Usage
 
@@ -60,35 +58,6 @@ import RNGameCenter from "react-native-game-center"
 
 RNGameCenter.getPlayer().then(player=>console.log("player: ",player))
 ```
-
-
-# Installation
-
-- From project root
-
-```bash
-yarn add react-native-game-center
-react-native link
-react-native run-ios
-```
-then **Follow setup Instructions**
-
-# Set Up
-> See [SETUP.md](SETUP.md)
-
-
-# Example
-
-or clone the repo and play with the example project
-
-```bash
-$ git clone https://github.com/garrettmac/react-native-game-center
-$ cd react-native-game-center/GameCenterExample
-$ yarn install
-$ npm start
-```
-
-
 
 
 
