@@ -1,26 +1,35 @@
-import { NativeModules } from "react-native";
+import { NativeModules, NativeEventEmitter } from "react-native";
 
-// const { RNGameCenter as ReactNativeGameCenter } = NativeModules;
+
+const EventEmittingModule = new NativeEventEmitter(NativeModules.RNGameCenter);
+
 
 const RNGameCenter = {
-  init: options => {
-    // required: achievementIdentifier
-    // optional: leaderboardIdentifier
-    // {achievementIdentifier:""
-    // leaderboardIdentifier:""}
 
-    return NativeModules.RNGameCenter.init(options);
+  addListener: (...args) => {
+    return EventEmittingModule.addListener(...args);
+  },
+
+  init: () => {
+    return NativeModules.RNGameCenter.init();
+  },
+
+  authenticate: () => {
+    return NativeModules.RNGameCenter.authenticate();
   },
 
   getPlayer: () => {
     return NativeModules.RNGameCenter.getPlayer();
   },
+
   generateIdentityVerificationSignature: () => {
     return NativeModules.RNGameCenter.generateIdentityVerificationSignature();
   },
+
   getPlayerFriends: () => {
     return NativeModules.RNGameCenter.getPlayerFriends();
   },
+
   getPlayerImage: () => {
     return NativeModules.RNGameCenter.getPlayerImage();
   },

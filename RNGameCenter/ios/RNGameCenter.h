@@ -15,10 +15,9 @@
 #else
 #import <React/RCTBridgeModule.h>
 #endif
+#import <React/RCTEventEmitter.h>
 
 
-
-
-@interface RNGameCenter : NSObject <RCTBridgeModule>
+@interface RNGameCenter : RCTEventEmitter <RCTBridgeModule>
 
 @end

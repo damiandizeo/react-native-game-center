@@ -15,6 +15,12 @@
 
 </p>
 
+
+# Status
+
+This is a fork of `garrettmac/react-native-game-center`. It contains some further work, as well as some refactoring. It is, however, a work in progress, and some features beyond simple login (leatherboards) may not work correctly in it's current state. Patches are welcome! It is not currently published on npm.
+
+
 # Contents
 
 - [Installation](#installation)
@@ -52,102 +58,79 @@ $ npm start
 
 # Basic Usage
 
-- In your `index.js`, use:
 ```bash
-import RNGameCenter from "react-native-game-center"
+import GameCenter from "react-native-game-center"
 
-RNGameCenter.getPlayer().then(player=>console.log("player: ",player))
+
+// The event handler will be called whenever the authentication status changes,
+// and often, when it did not. For example, every time your app returns from
+// the background, GameKit will call this, because the user may have logged out.
+GameCenter.addListener('onAuthenticate', ({isAuthenticated}) => {
+  if (!isAuthenticated) {
+    Logout();
+  }  
+});
+
+
+// There are two ways to get started:
+
+
+// The init method will check if the user is already logged in, and if so, the
+// user will see a "Welcome back" message from GameCenter. The promise will 
+// tell if whether they are or are not authenticated.
+//
+// If they are, you can then do things like call `getPlayer()`.
+      
+GameCenter.init().then(({isAuthenticated}) => {
+  ...
+});
+
+
+// The authenticate method can be called in addition or instead of "init": It
+// will, if the user is not logged in, show the GameCenter login screen.
 ```
 
 
+# init() <Promise?>
 
-# Init Method
+Initializes GameCenter functionality, and immediately tries to see if the current user 
+is already logged into your app. If so, GameKit will show a "Welcome back" message. If
+the user is not yet authenticated, you can call `authenticate()` to show the login
+screen.
 
-* [init() <Promise?>](#init----promise--)
-    - [Details](#details)
-    - [Parameters](#parameters)
-    - [Usage](#usage)
-
-## init() <Promise?>
-
-#### Details
-
-Initiates your app with Game Center.
-Add this to the top of your app before your `AppRegister`.
-
-
-**ITUNES CONNECT APP DASHBOARD**
-> https://itunesconnect.apple.com/WebObjects/iTunesConnect.woa/ra/ng/app
-
-**Then**
-> SELECT APP > Feature > Game Center
-
-#### Parameters
-
-| Name  | Required | Default    | Description |
-|--------------|--------------|--------------|--------------|
-| leaderboardIdentifier |  Yes | `undefined` | Your apps default leaderboard Identifier. You can can several of these but at least one is required.  |
-| achievementIdentifier | No | `undefined` | Your apps default achievement Identifier. Not required. Set this to avoid having to keep passing it in.  |
-
-
-#### Usage
-
-**Basic**
 
 ```jsx
-const leaderboardIdentifier="high_scores"
+GameCenter.init()
+  .then(console.log)
+  .catch(console.warn)
 
-  GameCenter.init({leaderboardIdentifier})
 ```
 
-**Advanced**
+# authenticate() <Promise?>
+
+Same as `init()`, but will show a GameCenter login screen if the user is not yet authorized.
+
 
 ```jsx
-const leaderboardIdentifier="high_scores"
-const achievementIdentifier="novice_award"
-
-
-//init app
-GameCenter.init({leaderboardIdentifier,achievementIdentifier})
+GameCenter.authenticate()
   .then(console.log)
   .catch(console.warn)
 
 ```
 
 
-
-
-
-
 # Player Methods
 
 [Player Methods](#player-methods)
  * [getPlayer <Promise?>](#getplayer--promise--)
-     - [Details](#details-1)
-     - [Parameters](#parameters-1)
-     - [Basic Usage](#basic-usage-1)
-     - [Response](#response)
- * [getPlayerImage <Promise?>](#getplayerimage--promise--)
-     - [Details](#details-2)
-     - [Parameters](#parameters-2)
-     - [Usage](#usage-1)
-     - [Success Response](#success-response)
-     - [Failed Response](#failed-response)
-   + [getPlayerFriends](#getplayerfriends)
-     - [Details](#details-3)
-     - [Parameters](#parameters-3)
-     - [Usage](#usage-2)
-     - [Response](#response-1)
+ * [getPlayerImage <Promise?>](#getplayerimage--promise--)     
+ * [getPlayerFriends](#getplayerfriends)
+
 
 ## getPlayer <Promise?>
 
-#### Details
+Returns the authenticated user, or `null` if no user is authenticated.
 
-Gets logged in user.
-
-#### Parameters
-
-No Parameters
 
 #### Basic Usage
 
@@ -162,8 +145,6 @@ No Parameters
 ```json
 {alias: "Garrettmacmac", displayName: "Me", playerID: "G:8135064222"}
 ```
-
-
 
 
 ## getPlayerImage <Promise?>

@@ -15,7 +15,7 @@
 NSString *_leaderboardIdentifier;
 NSString *_achievementIdentifier;
 NSString *_playerId;
-BOOL _isGameCenterAvailable = NO;
+BOOL _initCallHasCompleted = NO;
 
 static RNGameCenter *SharedInstance = nil;
 // static NSString *scoresArchiveKey = @"Scores";
@@ -43,103 +43,314 @@ static RNGameCenter *SharedInstance = nil;
 
 @implementation RNGameCenter
 
+bool hasListeners;
+UIViewController* storedGCViewController;
+NSError* _storedInitError;
+RCTPromiseResolveBlock _storedResolve;
+RCTPromiseRejectBlock _storedReject;
+
+
 - (dispatch_queue_t)methodQueue {
     return dispatch_get_main_queue();
 }
+
+- (NSArray<NSString *> *)supportedEvents {
+    return @[@"onAuthenticate"];
+}
+
+// Will be called when this module's first listener is added.
+-(void)startObserving {
+    hasListeners = YES;
+}
+
+// Will be called when this module's last listener is removed, or on dealloc.
+-(void)stopObserving {
+    hasListeners = NO;
+}
+
+- (void)sendAuthenticateEvent:(id)error isInitial:(bool)isInitial isAuthenticated:(bool)isAuthenticated {
+    if (hasListeners) {
+        [self sendEventWithName:@"onAuthenticate"
+                           body:@{@"isAuthenticated": @(isAuthenticated),
+                                  @"isInitial": @(isInitial)}];
+    }
+}
+
+
+- (void)presentViewController:(RCTPromiseResolveBlock)resolve
+                               rejecter: (RCTPromiseRejectBlock)reject {
+    UIViewController *rnView =
+    [UIApplication sharedApplication].keyWindow.rootViewController;
+    
+    // Note that if the user just cancels the view controller, then the promise
+    // will never be called, because our authenticate method is never called by
+    // GameKit. The user has to be aware of this.
+    //
+    // Recommeded usage would use the onAuthenticate event.
+    _storedReject = reject;
+    _storedResolve = resolve;
+    [rnView presentViewController:storedGCViewController
+                         animated:YES
+                       completion:nil];
+}
+
+- (void)handleGameKitAuthenticate:(UIViewController*)gcViewController error:(NSError*)error {
+    
+    // There are more error codes that we might want to pay attention to:
+    // GKErrorCancelled - if the user presses CANCEL on the view controller; if user has cancelled more than 3 times, you
+    //    get this error directly without ever being given a view controller.
+    if (error != nil) {
+        printf("Error code is: %d", (int)error.code);
+    }
+    
+    bool isThisFirstResponse = _initCallHasCompleted == NO;
+    _initCallHasCompleted = YES;
+    
+    // We will always trigger an onAuthenticate() event, but is there a promise that
+    // we have to fullfill?  A call to init() wants a response from us, as those a
+    // call to authenticate().
+    RCTPromiseResolveBlock resolveToCall;
+    RCTPromiseRejectBlock rejectToCall;
+    bool resolvePromise = NO;
+    if (_storedResolve) {
+        resolveToCall = _storedResolve;
+        rejectToCall = _storedReject;
+        _storedResolve = nil;
+        _storedReject = nil;
+        resolvePromise = YES;
+    }
+    
+    // Handle errors.
+    if (error.code == GKErrorCancelled) {
+        rejectToCall(@"Error", @"cancelled", error);
+        return;
+    }
+    
+    // The following errors we only expect those on the very first callback.
+    // We then store them for the future so we can fail any future calls.
+    if (error.code == GKErrorGameUnrecognized) {
+        if (isThisFirstResponse) {
+            _storedInitError = error;
+            rejectToCall(@"Error", @"game-unrecognized", error);
+        } else {
+            assert("authenticateHandler should not be called multiple times with this error");
+        }
+        return;
+    }
+    
+    if (error.code == GKErrorNotSupported) {
+        if (isThisFirstResponse) {
+            _storedInitError = error;
+            rejectToCall(@"Error", @"not-supported", error);
+        } else {
+            assert("authenticateHandler should not be called multiple times with this error");
+        }
+        return;
+    }
+    
+    // GameKit gives us as view controller to do the login. Means we are not logged in.
+    if (gcViewController != nil) {
+        
+        // Always store it for later
+        storedGCViewController = gcViewController;
+        
+        // If there is a promise for us to fullfill
+        if (resolvePromise) {
+            resolveToCall(@{@"isAuthenticated": @NO});
+        }
+        
+        // Always trigger an event
+        [self sendAuthenticateEvent:[NSNull null] isInitial:isThisFirstResponse isAuthenticated:NO];
+        
+    }
+    
+    // GameKit tells us the result of the "login view controller", or updates us if
+    // the app returns from the background.
+    else if ([GKLocalPlayer localPlayer].isAuthenticated) {
+        
+        // Fullfill any promises
+        if (resolvePromise) {
+            resolveToCall(@{@"isAuthenticated": @YES});
+        }
+        
+        // Always trigger an event
+        [self sendAuthenticateEvent:[NSNull null] isInitial:isThisFirstResponse isAuthenticated:YES];
+    }
+    
+    // GameKit tells us the result of the "login view controller", or updates us if
+    // the app returns from the background.
+    else {
+        // Fullfill any promises
+        if (resolvePromise) {
+            resolveToCall(@{@"isAuthenticated": @NO});
+        }
+        
+        // Always trigger an event
+        [self sendAuthenticateEvent:[NSNull null] isInitial:isThisFirstResponse isAuthenticated:NO];
+    }
+}
+
 
 RCT_EXPORT_MODULE()
 
 /* -----------------------------------------------------------------------------------------------------------------------------------------
  Init Game Center
+ https://developer.apple.com/documentation/gamekit/gklocalplayer/1515399-authenticatehandler
  -----------------------------------------------------------------------------------------------------------------------------------------*/
 
-RCT_EXPORT_METHOD(init
-                  : (NSDictionary *)options resolve
+RCT_EXPORT_METHOD(init: (RCTPromiseResolveBlock)resolve
+                  rejecter: (RCTPromiseRejectBlock)reject)
+{
+    GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
+    
+    // If we already assigned an authenticate handler, do not do so again.
+    // If the user calls init() a second time before the first one completed,
+    // they would receive a "logged out" state. Note that if we checked
+    // _initCallHasCompleted here, the second call might simply not return at all.
+    if (localPlayer.authenticateHandler) {
+        if (_storedInitError) {
+            
+            // Is this right? Or can we make authenticateHandler run again and
+            // see if the game is *now* recgonized?
+            if (_storedInitError.code == GKErrorGameUnrecognized) {
+                reject(@"Error", @"game-unrecognized", _storedInitError);
+                return;
+            }
+            if (_storedInitError.code == GKErrorNotSupported) {
+                reject(@"Error", @"not-supported", _storedInitError);
+                return;
+            }
+        }
+        
+        resolve(@{@"isAuthenticated": @(localPlayer.isAuthenticated)});
+        [self sendAuthenticateEvent:[NSNull null] isInitial:NO isAuthenticated:localPlayer.isAuthenticated];
+    }
+    
+    // Setting the authenticateHandler will cause GameKit to check for an existing user,
+    // showing a "Welcome back" message if found. The handler will then also be called
+    // when the app returns from the background.
+    //
+    // By storing reject/resolve, they will be called once we get the result
+    _storedReject = reject;
+    _storedResolve = resolve;
+    
+    // NB: If we do not use a weak self here, what will happen is that the dealloc is
+    // somehow delayed (I do not understand all the details), and a CTRL+R (RELOAD)
+    // in react-native causes [self stopObserving] to be called by [EventEmitter dealloc]
+    // *after* a addListener() call from JS causes [self startObserving] to be invoked.
+    // Thus, disabling our listeners.
+    __weak RNGameCenter *weakSelf = self;
+    localPlayer.authenticateHandler = ^(UIViewController *gcViewController,
+                                        NSError *error)
+    {
+        [weakSelf handleGameKitAuthenticate:gcViewController error:error];
+    };
+};
+
+
+RCT_EXPORT_METHOD(authenticate
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 {
-    // GKGameCenterViewController* gcViewController =
-    // [[GKGameCenterViewController alloc]init];
-    if (options[@"leaderboardIdentifier"])
-        _leaderboardIdentifier = options[@"leaderboardIdentifier"];
-    else
-        reject(
-            @"Error",
-            @"Error please pass your leaderboardIdentifier into init function",
-            nil);
-
-    if (options[@"achievementIdentifier"])
-        _achievementIdentifier = options[@"achievementIdentifier"];
-
-    UIViewController *rnView =
-        [UIApplication sharedApplication].keyWindow.rootViewController;
-
     GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
-
+    
+    // If the player is already authenticated, we don't need to do anything.
     if (localPlayer.isAuthenticated) {
-        resolve(@"already authenticated");
+        [self sendAuthenticateEvent:[NSNull null] isInitial:NO isAuthenticated:YES];
+        resolve(@{@"isAuthenticated": @YES});
         return;
     }
+    
+    // If init was not called, call init with a special option "show!"
+    if (!_initCallHasCompleted) {
+        [self init:^(id result)
+         {
+             NSDictionary *data = result;
+             if ([data[@"isAuthenticated"] boolValue]) {
+                 resolve(result);
+             }
+             else {
+                 // At this point, if there is no controller, and since the user is not
+                 // authenticated, we can assume that GameCenter is turned off.
+                 if (!storedGCViewController) {
+                     [self sendAuthenticateEvent:[NSNull null] isInitial:NO isAuthenticated:NO];
+                     resolve(@{@"isAuthenticated": @NO, @"likelyReason": @"GameCenter is turned off in the settings"});
+                     return;
+                 }
+                 
+                 [self presentViewController:resolve rejecter:reject];
+             }
+         } rejecter:reject];
+        return;
+    }
+    
+    // So init() was already called...
+    
+    // If there was an initialiation error, raise it here.
+    if (_storedInitError) {
+        
+        // Is this right? Or can we make authenticateHandler run again and
+        // see if the game is *now* recgonized?
+        if (_storedInitError.code == GKErrorGameUnrecognized) {
+            reject(@"Error", @"game-unrecognized", _storedInitError);
+            return;
+        }
+        if (_storedInitError.code == GKErrorNotSupported) {
+            reject(@"Error", @"not-supported", _storedInitError);
+            return;
+        }
+    }
+    
+    // At this point, if there is no controller, and since the user is not
+    // authenticated, we can assume that GameCenter is turned off.
+    //
+    // This also happens if the user cancels a certain number of times:
+    // https://stackoverflow.com/questions/18927723/reenabling-gamecenter-after-user-cancelled-3-times-ios7-only
+    if (!storedGCViewController) {
+        [self sendAuthenticateEvent:[NSNull null] isInitial:NO isAuthenticated:NO];
+        resolve(@{@"isAuthenticated": @NO, @"likelyReason": @"GameCenter is turned off in the settings"});
+        return;
+    }
+    
+    // Otherwise, show the view controller given to us by a previous call to init().
+    // Set things up such that the very next time promise the authenticated handler is called,
+    // we return this promise??
+    [self presentViewController:resolve rejecter:reject];
+}
 
-    localPlayer.authenticateHandler = ^(UIViewController *gcViewController,
-                                        NSError *error) {
-      if (gcViewController != nil) {
-          [rnView presentViewController:gcViewController
-                               animated:YES
-                             completion:nil];
-      }
-      else {
-          if ([GKLocalPlayer localPlayer].authenticated) {
-              // Get the default leaderboard identifier.
-              [[GKLocalPlayer localPlayer]
-                  loadDefaultLeaderboardIdentifierWithCompletionHandler:^(
-                      NSString *leaderboardIdentifier, NSError *error) {
-                    if (error != nil) {
-                        NSLog(@"%@", [error localizedDescription]);
-                        reject(
-                            @"Error",
-                            @"Error initiating Game Center; make sure you are "
-                            @"enrolled in the Apple program, you set up Game "
-                            @"Center in iTunes Connect, and you registered it to "
-                            @"the correct and matching app bundle id",
-                            error);
-                    }
-                    else {
-                        // set to global
-                        _isGameCenterAvailable = YES;
-                        _leaderboardIdentifier = leaderboardIdentifier;
-                        resolve(@"init success");
-                    }
-                  }];
-          }
-          else {
-              reject(@"Error", @"Error initiating Game Center Player", error);
-          }
-      }
-    };
-};
+
+
+RCT_EXPORT_METHOD(setDefaultOptions
+                  : (NSDictionary *)options)
+{
+    if (options[@"leaderboardIdentifier"])
+        _leaderboardIdentifier = options[@"leaderboardIdentifier"];
+    
+    if (options[@"achievementIdentifier"])
+        _achievementIdentifier = options[@"achievementIdentifier"];
+    
+}
+
+
 
 /* -----------------------------------------------------------------------------------------------------------------------------------------
  Player
  -----------------------------------------------------------------------------------------------------------------------------------------*/
 
-/* -------------- generateIdentityVerificationSignature --------------*/
 
 RCT_EXPORT_METHOD(generateIdentityVerificationSignature
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 {
-    if (_isGameCenterAvailable == NO) {
-        reject(@"Error", @"Game Center is Unavailable", nil);
-        return;
-    }
-
     GKLocalPlayer *localPlayer;
     @try {
         localPlayer = [GKLocalPlayer localPlayer];
+        if (!localPlayer.isAuthenticated) {
+            reject(@"Error", @"No user is authenticated", nil);
+        }
     }
     @catch (NSError *e) {
-        reject(@"Error", @"Error getting user.", e);
+        reject(@"Error", @"Error getting user", e);
     }
 
     [localPlayer generateIdentityVerificationSignatureWithCompletionHandler:^(
@@ -167,26 +378,25 @@ RCT_EXPORT_METHOD(generateIdentityVerificationSignature
     }];
 }
 
-/* --------------getPlayer--------------*/
 
 RCT_EXPORT_METHOD(getPlayer
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 {
-    if (_isGameCenterAvailable == NO) {
-        reject(@"Error", @"Game Center is Unavailable", nil);
-        return;
-    }
-
     @try {
         GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
-        NSDictionary *user = @{
-            @"alias" : localPlayer.alias,
-            @"displayName" : localPlayer.displayName,
-            @"playerID" : localPlayer.playerID,
-            @"alias" : localPlayer.alias
-        };
-        resolve(user);
+        if (localPlayer.isAuthenticated) {
+            NSDictionary *user = @{
+                @"alias" : localPlayer.alias,
+                @"displayName" : localPlayer.displayName,
+                @"playerID" : localPlayer.playerID
+            };
+            resolve(user);
+        }
+        else {
+            resolve([NSNull null]);
+        }
+        
     }
     @catch (NSError *e) {
         reject(@"Error", @"Error getting user.", e);
@@ -219,8 +429,8 @@ RCT_EXPORT_METHOD(getPlayerImage
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 {
-    if (_isGameCenterAvailable == NO) {
-        reject(@"Error", @"Game Center is Unavailable", nil);
+    if (_initCallHasCompleted == NO) {
+        reject(@"Error", @"init() method was not called", nil);
         return;
     }
     @try {
@@ -378,11 +588,11 @@ RCT_EXPORT_METHOD(
     : (RCTPromiseRejectBlock)reject)
 {
 
-    if (_isGameCenterAvailable == NO) {
+    if (_initCallHasCompleted == NO) {
         UIViewController *rnView =
             [UIApplication sharedApplication].keyWindow.rootViewController;
         UIAlertController *gameCenterIsUnavailablePopup = [UIAlertController
-            alertControllerWithTitle:@"Game Center is unavailable!"
+            alertControllerWithTitle:@"GameCenter is not available"
                              message:@"You must be logged in to Game Center!"
                       preferredStyle:UIAlertControllerStyleAlert];
         [gameCenterIsUnavailablePopup
@@ -398,7 +608,7 @@ RCT_EXPORT_METHOD(
         [rnView presentViewController:gameCenterIsUnavailablePopup
                              animated:YES
                            completion:nil];
-        reject(@"Error", @"Game Center is Unavailable", nil);
+        reject(@"Error", @"init() method was not called", nil);
         return;
     }
 
@@ -432,7 +642,7 @@ RCT_EXPORT_METHOD(submitLeaderboardScore
                   : (RCTPromiseRejectBlock)reject)
 {
 
-    if (_isGameCenterAvailable == NO) {
+    if (_initCallHasCompleted == NO) {
         @try {
             //            UIViewController *rnView = [UIApplication
             //            sharedApplication].keyWindow.rootViewController;
@@ -460,7 +670,7 @@ RCT_EXPORT_METHOD(submitLeaderboardScore
             //            [rnView
             //            presentViewController:gameCenterIsUnavailablePopup
             //            animated:YES completion:nil];
-            reject(@"Error", @"Game Center is Unavailable", nil);
+            reject(@"Error", @"init() method was not called", nil);
             return;
         }
         @catch (NSError *e) {
@@ -503,8 +713,8 @@ RCT_EXPORT_METHOD(getLeaderboardPlayers
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 {
-    if (_isGameCenterAvailable == NO) {
-        reject(@"Error", @"Game Center is Unavailable for leaderboard players",
+    if (_initCallHasCompleted == NO) {
+        reject(@"Error", @"init() method was not called",
                nil);
         return;
     }
@@ -569,8 +779,8 @@ RCT_EXPORT_METHOD(getTopLeaderboardPlayers
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 {
-    if (_isGameCenterAvailable == NO) {
-        reject(@"Error", @"Game Center is Unavailable for leaderboard players",
+    if (_initCallHasCompleted == NO) {
+        reject(@"Error", @"init() method was not called",
                nil);
         return;
     }
@@ -634,11 +844,11 @@ RCT_EXPORT_METHOD(openAchievementModal
                   : (RCTPromiseRejectBlock)reject)
 {
 
-    if (_isGameCenterAvailable == NO) {
+    if (_initCallHasCompleted == NO) {
         UIViewController *rnView =
             [UIApplication sharedApplication].keyWindow.rootViewController;
         UIAlertController *gameCenterIsUnavailablePopup = [UIAlertController
-            alertControllerWithTitle:@"Game Center is unavailable!"
+            alertControllerWithTitle:@"GameCenter not available"
                              message:@"You must be logged in to Game Center!"
                       preferredStyle:UIAlertControllerStyleActionSheet];
         [gameCenterIsUnavailablePopup
@@ -653,7 +863,7 @@ RCT_EXPORT_METHOD(openAchievementModal
         [rnView presentViewController:gameCenterIsUnavailablePopup
                              animated:YES
                            completion:nil];
-        reject(@"Error", @"Game Center is Unavailable", nil);
+        reject(@"Error", @"init() method was not called", nil);
         return;
     }
 
@@ -690,9 +900,9 @@ RCT_EXPORT_METHOD(getAchievements
                   : (RCTPromiseRejectBlock)reject)
 {
 
-    if (_isGameCenterAvailable == NO) {
+    if (_initCallHasCompleted == NO) {
 
-        reject(@"Error", @"Game Center is Unavailable", nil);
+        reject(@"Error", @"init() method was not called", nil);
         return;
     }
 
@@ -730,11 +940,11 @@ RCT_EXPORT_METHOD(resetAchievements
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 {
-    if (_isGameCenterAvailable == NO) {
+    if (_initCallHasCompleted == NO) {
         UIViewController *rnView =
             [UIApplication sharedApplication].keyWindow.rootViewController;
         UIAlertController *gameCenterIsUnavailablePopup = [UIAlertController
-            alertControllerWithTitle:@"Game Center is unavailable!"
+            alertControllerWithTitle:@"GameCenter not available"
                              message:@"You must be logged in to Game Center!"
                       preferredStyle:UIAlertControllerStyleActionSheet];
         [gameCenterIsUnavailablePopup
@@ -749,7 +959,7 @@ RCT_EXPORT_METHOD(resetAchievements
         [rnView presentViewController:gameCenterIsUnavailablePopup
                              animated:YES
                            completion:nil];
-        reject(@"Error", @"Game Center is Unavailable", nil);
+        reject(@"Error", @"init() method was not called", nil);
         return;
     }
     // Clear all progress saved on Game Center.
@@ -837,7 +1047,7 @@ RCT_EXPORT_METHOD(submitAchievementScore
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 {
-    if (_isGameCenterAvailable == NO) {
+    if (_initCallHasCompleted == NO) {
         //    UIViewController *rnView = [UIApplication
         //    sharedApplication].keyWindow.rootViewController; UIAlertController
         //    *gameCenterIsUnavailablePopup = [UIAlertController
@@ -859,7 +1069,7 @@ RCT_EXPORT_METHOD(submitAchievementScore
         //                                                                   }]];
         //    [rnView presentViewController:gameCenterIsUnavailablePopup
         //    animated:YES completion:nil];
-        reject(@"Error", @"Game Center is Unavailable", nil);
+        reject(@"Error", @"init() method was not called", nil);
         return;
     }
     @try {
@@ -931,11 +1141,11 @@ RCT_EXPORT_METHOD(invite
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 {
-    if (_isGameCenterAvailable == NO) {
+    if (_initCallHasCompleted == NO) {
         UIViewController *rnView =
             [UIApplication sharedApplication].keyWindow.rootViewController;
         UIAlertController *gameCenterIsUnavailablePopup = [UIAlertController
-            alertControllerWithTitle:@"Game Center is unavailable!"
+            alertControllerWithTitle:@"GameCenter not available"
                              message:@"You must be logged in to Game Center!"
                       preferredStyle:UIAlertControllerStyleActionSheet];
         [gameCenterIsUnavailablePopup
@@ -950,7 +1160,7 @@ RCT_EXPORT_METHOD(invite
         [rnView presentViewController:gameCenterIsUnavailablePopup
                              animated:YES
                            completion:nil];
-        reject(@"Error", @"Game Center is Unavailable", nil);
+        reject(@"Error", @"init() method was not called", nil);
         return;
     }
 
@@ -1089,11 +1299,11 @@ RCT_EXPORT_METHOD(challengePlayersToCompleteAchievement
                   : (RCTPromiseResolveBlock)resolve rejecter
                   : (RCTPromiseRejectBlock)reject)
 {
-    if (_isGameCenterAvailable == NO) {
+    if (_initCallHasCompleted == NO) {
         UIViewController *rnView =
             [UIApplication sharedApplication].keyWindow.rootViewController;
         UIAlertController *gameCenterIsUnavailablePopup = [UIAlertController
-            alertControllerWithTitle:@"Game Center is unavailable!"
+            alertControllerWithTitle:@"GameCenter is not available"
                              message:@"You must be logged in to Game Center!"
                       preferredStyle:UIAlertControllerStyleActionSheet];
         [gameCenterIsUnavailablePopup
@@ -1108,7 +1318,7 @@ RCT_EXPORT_METHOD(challengePlayersToCompleteAchievement
         [rnView presentViewController:gameCenterIsUnavailablePopup
                              animated:YES
                            completion:nil];
-        reject(@"Error", @"Game Center is Unavailable", nil);
+        reject(@"Error", @"init() method was not called", nil);
         return;
     }
 
