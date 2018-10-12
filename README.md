@@ -286,7 +286,7 @@ Submit progress of users leaderboard
 | Name  | Required | Default    | Description |
 |--------------|--------------|--------------|--------------|
 | score |  Yes | n/a | some number to track for leaderboard    |
-| leaderboarIdentifier |  No* (see Response) | `leaderboarIdentifier` set up in Itunes Connect  |
+| leaderboardIdentifier |  No* (see Response) | `leaderboardIdentifier` set up in Itunes Connect  |
 
 
 #### Usage
@@ -299,7 +299,7 @@ Submit progress of users leaderboard
 ```jsx
 let options={score:50};
 
-//reverts to default leaderboarIdentifier set up in init()
+//reverts to default leaderboardIdentifier set up in init()
 GameCenter.submitLeaderboardScore(options)
 //now update state
 this.setState(options)
@@ -309,7 +309,7 @@ this.setState(options)
 ```jsx
 let options={
   score:50,
-  leaderboarIdentifier:"some_other_leaderboard"
+  leaderboardIdentifier:"some_other_leaderboard"
 };
 
 GameCenter.submitLeaderboardScore(options)
@@ -358,7 +358,7 @@ Get information about certain player ids on the leaderboard
 ```jsx
 let options={
   playerIds: ["player_1","player_2"], //Please note that this is the player id as set by apple and not the user name
-  leaderboarIdentifier:"some_other_leaderboard" //Optional
+  leaderboardIdentifier:"some_other_leaderboard" //Optional
 };
 
 GameCenter.getLeaderboardPlayers(options)
@@ -415,7 +415,7 @@ Get information about top players on the leaderboard
 ```jsx
 let options={
   count:4,
-  leaderboarIdentifier:"some_other_leaderboard" //Optional
+  leaderboardIdentifier:"some_other_leaderboard" //Optional
 };
 
 GameCenter.getLeaderboardPlayers(options)
