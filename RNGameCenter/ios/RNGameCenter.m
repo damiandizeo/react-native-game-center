@@ -201,50 +201,78 @@ RCT_EXPORT_MODULE()
 RCT_EXPORT_METHOD(init: (RCTPromiseResolveBlock)resolve
                   rejecter: (RCTPromiseRejectBlock)reject)
 {
-    GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
+    // GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
     
-    // If we already assigned an authenticate handler, do not do so again.
-    // If the user calls init() a second time before the first one completed,
-    // they would receive a "logged out" state. Note that if we checked
-    // _initCallHasCompleted here, the second call might simply not return at all.
-    if (localPlayer.authenticateHandler) {
-        if (_storedInitError) {
+    // // If we already assigned an authenticate handler, do not do so again.
+    // // If the user calls init() a second time before the first one completed,
+    // // they would receive a "logged out" state. Note that if we checked
+    // // _initCallHasCompleted here, the second call might simply not return at all.
+    // if (localPlayer.authenticateHandler) {
+    //     if (_storedInitError) {
             
-            // Is this right? Or can we make authenticateHandler run again and
-            // see if the game is *now* recgonized?
-            if (_storedInitError.code == GKErrorGameUnrecognized) {
-                reject(@"Error", @"game-unrecognized", _storedInitError);
-                return;
-            }
-            if (_storedInitError.code == GKErrorNotSupported) {
-                reject(@"Error", @"not-supported", _storedInitError);
-                return;
-            }
-        }
+    //         // Is this right? Or can we make authenticateHandler run again and
+    //         // see if the game is *now* recgonized?
+    //         if (_storedInitError.code == GKErrorGameUnrecognized) {
+    //             reject(@"Error", @"game-unrecognized", _storedInitError);
+    //             return;
+    //         }
+    //         if (_storedInitError.code == GKErrorNotSupported) {
+    //             reject(@"Error", @"not-supported", _storedInitError);
+    //             return;
+    //         }
+    //     }
         
-        resolve(@{@"isAuthenticated": @(localPlayer.isAuthenticated)});
-        [self sendAuthenticateEvent:[NSNull null] isInitial:NO isAuthenticated:localPlayer.isAuthenticated];
-    }
+    //     resolve(@{@"isAuthenticated": @(localPlayer.isAuthenticated)});
+    //     [self sendAuthenticateEvent:[NSNull null] isInitial:NO isAuthenticated:localPlayer.isAuthenticated];
+    // }
     
-    // Setting the authenticateHandler will cause GameKit to check for an existing user,
-    // showing a "Welcome back" message if found. The handler will then also be called
-    // when the app returns from the background.
-    //
-    // By storing reject/resolve, they will be called once we get the result
-    _storedReject = reject;
-    _storedResolve = resolve;
+    // // Setting the authenticateHandler will cause GameKit to check for an existing user,
+    // // showing a "Welcome back" message if found. The handler will then also be called
+    // // when the app returns from the background.
+    // //
+    // // By storing reject/resolve, they will be called once we get the result
+    // _storedReject = reject;
+    // _storedResolve = resolve;
     
     // NB: If we do not use a weak self here, what will happen is that the dealloc is
     // somehow delayed (I do not understand all the details), and a CTRL+R (RELOAD)
     // in react-native causes [self stopObserving] to be called by [EventEmitter dealloc]
     // *after* a addListener() call from JS causes [self startObserving] to be invoked.
     // Thus, disabling our listeners.
-    __weak RNGameCenter *weakSelf = self;
-    localPlayer.authenticateHandler = ^(UIViewController *gcViewController,
-                                        NSError *error)
-    {
-        [weakSelf handleGameKitAuthenticate:gcViewController error:error];
+    // __weak RNGameCenter *weakSelf = self;
+    // localPlayer.authenticateHandler = ^(UIViewController *gcViewController,
+    //                                     NSError *error)
+    // {
+    //     [weakSelf handleGameKitAuthenticate:gcViewController error:error];
+    // };
+
+
+    
+    __weak GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
+    localPlayer.authenticateHandler = ^(UIViewController *gcAuthViewController,
+                                        NSError *error) {
+    if (gcAuthViewController != nil) {
+            // Pause any activities that require user interaction, then present the
+            // gcAuthViewController to the player.
+        } else if (localPlayer.isAuthenticated) {
+            // Player is signed in to Game Center. Get Firebase credentials from the
+            // player's Game Center credentials (see below).
+            // Get Firebase credentials from the player's Game Center credentials
+            [FIRGameCenterAuthProvider getCredentialWithCompletion:^(FIRAuthCredential *credential,
+                                                                    NSError *error) {
+                // The credential can be used to sign in, or re-auth, or link or unlink.
+                    if (error == nil) {
+                        [[FIRAuth auth] signInWithCredential:credential
+                            completion:^(FIRAuthDataResult *_Nullable user, NSError *_Nullable error) {
+                        // If error is nil, player is signed in.
+                        }];
+                    }
+                }];
+        } else {
+            // Error
+        }
     };
+    resolve(@{@"isAuthenticated": @(localPlayer.isAuthenticated)});
 };
 
 
@@ -386,12 +414,20 @@ RCT_EXPORT_METHOD(getPlayer
     @try {
         GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
         if (localPlayer.isAuthenticated) {
-            NSDictionary *user = @{
-                @"alias" : localPlayer.alias,
-                @"displayName" : localPlayer.displayName,
-                @"playerID" : localPlayer.playerID
-            };
-            resolve(user);
+            FIRUser *user = [FIRAuth auth].currentUser;
+            if (user) {
+                NSString *playerName = user.displayName;
+
+                // The user's ID, unique to the Firebase project.
+                // Do NOT use this value to authenticate with your backend server,
+                // if you have one. Use getTokenWithCompletion:completion: instead.
+                NSString *uid = user.uid;
+                NSDictionary *firebaseUser = @{
+                    @"displayName" : user.displayName,
+                    @"uid" : user.uid
+                };
+                resolve(firebaseUser);
+            }
         }
         else {
             resolve([NSNull null]);

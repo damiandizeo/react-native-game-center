@@ -9,6 +9,7 @@
 //#import <Foundation/Foundation.h>
 
 #import <GameKit/GameKit.h>
+#import "Firebase.h"
 
 #if __has_include("RCTBridgeModule.h")
 #import "RCTBridgeModule.h"
