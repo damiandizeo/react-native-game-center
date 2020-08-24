@@ -201,45 +201,45 @@ RCT_EXPORT_MODULE()
 RCT_EXPORT_METHOD(init: (RCTPromiseResolveBlock)resolve
                   rejecter: (RCTPromiseRejectBlock)reject)
 {
-    // GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
+    GKLocalPlayer *localPlayerTemp = [GKLocalPlayer localPlayer];
+    // If we already assigned an authenticate handler, do not do so again.
+    // If the user calls init() a second time before the first one completed,
+    // they would receive a "logged out" state. Note that if we checked
+    // _initCallHasCompleted here, the second call might simply not return at all.
+    if (localPlayerTemp.authenticateHandler) {
+       if (_storedInitError) {
+          
+           // Is this right? Or can we make authenticateHandler run again and
+           // see if the game is *now* recgonized?
+           if (_storedInitError.code == GKErrorGameUnrecognized) {
+               reject(@"Error", @"game-unrecognized", _storedInitError);
+               return;
+           }
+           if (_storedInitError.code == GKErrorNotSupported) {
+               reject(@"Error", @"not-supported", _storedInitError);
+               return;
+           }
+       }
+      
+       resolve(@{@"isAuthenticated": @(localPlayerTemp.isAuthenticated)});
+       [self sendAuthenticateEvent:[NSNull null] isInitial:NO isAuthenticated:localPlayerTemp.isAuthenticated];
+   }
+
+    // Setting the authenticateHandler will cause GameKit to check for an existing user,
+    // showing a "Welcome back" message if found. The handler will then also be called
+    // when the app returns from the background.
+    //
+    // By storing reject/resolve, they will be called once we get the result
+    _storedReject = reject;
+    _storedResolve = resolve;
     
-    // // If we already assigned an authenticate handler, do not do so again.
-    // // If the user calls init() a second time before the first one completed,
-    // // they would receive a "logged out" state. Note that if we checked
-    // // _initCallHasCompleted here, the second call might simply not return at all.
-    // if (localPlayer.authenticateHandler) {
-    //     if (_storedInitError) {
-            
-    //         // Is this right? Or can we make authenticateHandler run again and
-    //         // see if the game is *now* recgonized?
-    //         if (_storedInitError.code == GKErrorGameUnrecognized) {
-    //             reject(@"Error", @"game-unrecognized", _storedInitError);
-    //             return;
-    //         }
-    //         if (_storedInitError.code == GKErrorNotSupported) {
-    //             reject(@"Error", @"not-supported", _storedInitError);
-    //             return;
-    //         }
-    //     }
-        
-    //     resolve(@{@"isAuthenticated": @(localPlayer.isAuthenticated)});
-    //     [self sendAuthenticateEvent:[NSNull null] isInitial:NO isAuthenticated:localPlayer.isAuthenticated];
-    // }
-    
-    // // Setting the authenticateHandler will cause GameKit to check for an existing user,
-    // // showing a "Welcome back" message if found. The handler will then also be called
-    // // when the app returns from the background.
-    // //
-    // // By storing reject/resolve, they will be called once we get the result
-    // _storedReject = reject;
-    // _storedResolve = resolve;
-    
+
     // NB: If we do not use a weak self here, what will happen is that the dealloc is
     // somehow delayed (I do not understand all the details), and a CTRL+R (RELOAD)
     // in react-native causes [self stopObserving] to be called by [EventEmitter dealloc]
     // *after* a addListener() call from JS causes [self startObserving] to be invoked.
     // Thus, disabling our listeners.
-    // __weak RNGameCenter *weakSelf = self;
+    //     __weak RNGameCenter *weakSelf = self;
     // localPlayer.authenticateHandler = ^(UIViewController *gcViewController,
     //                                     NSError *error)
     // {
@@ -247,11 +247,11 @@ RCT_EXPORT_METHOD(init: (RCTPromiseResolveBlock)resolve
     // };
 
 
-    
     __weak GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
+    __weak RNGameCenter *weakSelf = self;
     localPlayer.authenticateHandler = ^(UIViewController *gcAuthViewController,
                                         NSError *error) {
-    if (gcAuthViewController != nil) {
+        if (gcAuthViewController != nil) {
             // Pause any activities that require user interaction, then present the
             // gcAuthViewController to the player.
         } else if (localPlayer.isAuthenticated) {
@@ -271,8 +271,9 @@ RCT_EXPORT_METHOD(init: (RCTPromiseResolveBlock)resolve
         } else {
             // Error
         }
+        // From forked version
+        [weakSelf handleGameKitAuthenticate:gcAuthViewController error:error];
     };
-    resolve(@{@"isAuthenticated": @(localPlayer.isAuthenticated)});
 };
 
 
@@ -414,6 +415,11 @@ RCT_EXPORT_METHOD(getPlayer
     @try {
         GKLocalPlayer *localPlayer = [GKLocalPlayer localPlayer];
         if (localPlayer.isAuthenticated) {
+            NSDictionary *gameCenterUser = @{
+                @"alias" : localPlayer.alias,
+                @"displayName" : localPlayer.displayName,
+                @"playerID" : localPlayer.playerID
+            };
             FIRUser *user = [FIRAuth auth].currentUser;
             if (user) {
                 NSString *playerName = user.displayName;
@@ -423,8 +429,8 @@ RCT_EXPORT_METHOD(getPlayer
                 // if you have one. Use getTokenWithCompletion:completion: instead.
                 NSString *uid = user.uid;
                 NSDictionary *firebaseUser = @{
-                    @"displayName" : user.displayName,
-                    @"uid" : user.uid
+                    @"uid" : user.uid,
+                    @"gameCenterUser" : gameCenterUser
                 };
                 resolve(firebaseUser);
             }
