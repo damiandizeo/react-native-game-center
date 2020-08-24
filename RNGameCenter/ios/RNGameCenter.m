@@ -429,7 +429,7 @@ RCT_EXPORT_METHOD(getPlayer
                 // if you have one. Use getTokenWithCompletion:completion: instead.
                 NSString *uid = user.uid;
                 NSDictionary *firebaseUser = @{
-                    @"uid" : user.uid,
+                    @"firebaseUid" : user.uid,
                     @"gameCenterUser" : gameCenterUser
                 };
                 resolve(firebaseUser);
