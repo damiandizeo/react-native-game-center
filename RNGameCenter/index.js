@@ -7,7 +7,7 @@ module.exports = {
     initialize:(options: object) => RNGameCenter.initialize(options),
     getPlayer: () => RNGameCenter.getPlayer(),
     openLeaderboardModal:(options: object) => RNGameCenter.openLeaderboardModal(options),
-    submitLeaderboardScore:(score: int) => RNGameCenter.submitLeaderboardScore(score, options),
+    submitLeaderboardScore:(score: int, options: object) => RNGameCenter.submitLeaderboardScore(score, options),
     addEventListener: (eventType: string, listener: Function) => emitter.addListener(eventType, listener),
     removeListener: (eventType: string) => emitter.removeAllListeners(eventType)
 };
